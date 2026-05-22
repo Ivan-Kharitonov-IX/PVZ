@@ -257,16 +257,36 @@ body{
 .scenario-row.locked{opacity:.45;cursor:not-allowed;}
 .scenario-row.locked:hover{background:rgba(255,255,255,.04);}
 .btn-finish{
-  width:100%;margin-top:20px;padding:16px;
+  width:100%;margin-top:16px;padding:16px;
   background:var(--white);color:var(--black);
   border:none;border-radius:var(--r-sm);
   font-family:'Inter',sans-serif;
   font-size:11px;font-weight:500;letter-spacing:2px;text-transform:uppercase;
-  cursor:pointer;transition:background .2s,transform .15s;
-  display:none;animation:fadeUp .5s ease both;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  transition:background .2s, opacity .3s, transform .15s;
+  /* visibility вместо display:none — надёжнее в LMS iFrame */
+  visibility:hidden;
+  opacity:0;
+  height:0;
+  overflow:hidden;
+  padding-top:0;
+  padding-bottom:0;
+  margin-top:0;
+  pointer-events:none;
 }
-.btn-finish.show{display:block;}
+.btn-finish.show{
+  visibility:visible;
+  opacity:1;
+  height:auto;
+  overflow:visible;
+  padding:16px;
+  margin-top:16px;
+  pointer-events:auto;
+}
 .btn-finish:hover{background:#E8E6E3;transform:translateY(-1px);}
+.btn-finish:active{background:#D8D6D3;}
 
 /* ══════════════════════════════════
    GAME
@@ -827,11 +847,11 @@ body{
         <span class="sc-diff diff-hard"><svg width="20" height="6" viewBox="0 0 20 6"><circle cx="3" cy="3" r="2.5" fill="currentColor"/><circle cx="10" cy="3" r="2.5" fill="currentColor"/><circle cx="17" cy="3" r="2.5" fill="currentColor"/></svg>Сложный</span>
         <span class="sc-status locked" id="sc-status-2">—</span>
       </div>
-      <button class="btn-finish" id="btn-finish" onclick="showFinalResult()">
-        Перейти к итогам
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="display:inline;vertical-align:middle;margin-left:8px;"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
     </div>
+    <button class="btn-finish" id="btn-finish" onclick="showFinalResult()">
+      Перейти к итогам
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="display:inline;vertical-align:middle;margin-left:8px;"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   </div>
 </div>
 
@@ -957,7 +977,7 @@ body{
     <div id="f-scenarios" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;"></div>
     <div id="f-feedback-block" style="margin-bottom:24px;"></div>
     <div style="display:flex;flex-direction:column;gap:8px;">
-      <button class="btn-close-training" id="btn-close" onclick="closeTraining()">Завершить обучение</button>
+      <button class="btn-close-training" id="btn-close"  onclick="closeTraining(event)" ontouchend="closeTraining(event)" type="button" >Завершить обучение</button>
       <button class="btn-menu" onclick="restartAll()">Пройти заново</button>
     </div>
   </div>
@@ -1151,7 +1171,29 @@ function updateSelectorUI(){
   }
   const allDone=completedScenarios.length>=TOTAL;
   const fb=document.getElementById('btn-finish');
-  if(fb) fb.className='btn-finish'+(allDone?' show':'');
+  if(fb){
+    // Явно ставим className + setAttribute для максимальной совместимости с LMS
+    if(allDone){
+      fb.className='btn-finish show';
+      fb.removeAttribute('disabled');
+      fb.style.visibility='visible';
+      fb.style.opacity='1';
+      fb.style.height='auto';
+      fb.style.overflow='visible';
+      fb.style.padding='16px';
+      fb.style.marginTop='16px';
+      fb.style.pointerEvents='auto';
+    } else {
+      fb.className='btn-finish';
+      fb.style.visibility='hidden';
+      fb.style.opacity='0';
+      fb.style.height='0';
+      fb.style.overflow='hidden';
+      fb.style.padding='0 16px';
+      fb.style.marginTop='0';
+      fb.style.pointerEvents='none';
+    }
+  }
   if(allDone){
     document.getElementById('sel-title').textContent='Все сценарии пройдены';
     document.getElementById('sel-sub').textContent='Нажми «Завершить» для итогового результата';
@@ -1352,16 +1394,7 @@ function retryScenario(){
   allMistakes=allMistakes.filter(m=>m.scId!==SC.id);
   startScenario(SC.id);
 }
-function closeTraining(){
-  try{
-    const API=window.API||window.parent&&window.parent.API||window.top&&window.top.API;
-    if(API){ API.LMSFinish(""); }
-  }catch(e){}
-  try{ window.close(); }catch(e){}
-  /* Фолбэк если window.close() заблокирован */
-  const btn=document.getElementById('btn-close');
-  if(btn){ btn.textContent='Обучение завершено ✓'; btn.disabled=true; btn.style.opacity='.5'; }
-}
+
 function restartAll(){
   completedScenarios=[]; allMistakes=[];
   updateSelectorUI();
@@ -1382,17 +1415,17 @@ function showFinalResult(){
   if(pct>=75){
     rankEyebrow='Высший уровень';
     rankTitle='Икона сервиса';
-    rankDesc='Вы безупречно владеете стандартами обслуживания ПВЗ. Клиенты чувствуют профессионализм в каждом ответе — именно такой уровень отличает лучших сотрудников Lamoda.';
+    rankDesc='Ты безупречно владеешь стандартами обслуживания ПВЗ. Клиенты чувствуют профессионализм в каждом ответе — именно такой уровень отличает лучших сотрудников Lamoda.';
     rankSVG=starSVG;
   } else if(pct>=50){
     rankEyebrow='Средний уровень';
     rankTitle='Мастер сервиса';
-    rankDesc='Вы хорошо знаете стандарты и справляетесь с большинством ситуаций. Немного практики в сложных случаях — и результат выйдет на высший уровень.';
+    rankDesc='Ты хорошо знаешь стандарты и справляешься с большинством ситуаций. Немного практики в сложных случаях — и результат выйдет на высший уровень.';
     rankSVG=shieldSVG;
   } else {
     rankEyebrow='Начальный уровень';
     rankTitle='Адепт сервиса';
-    rankDesc='Вы делаете первые шаги к мастерству. Изучите стандарты сервиса, обратите внимание на советы ниже и пройдите тренажёр снова — прогресс не заставит себя ждать.';
+    rankDesc='Ты делаешь первые шаги к мастерству. Изучи стандарты сервиса, обрати внимание на советы ниже и пройди тренажёр снова — прогресс не заставит себя ждать.';
     rankSVG=leafSVG;
   }
   document.getElementById('f-rank-badge').innerHTML=rankSVG;
@@ -1432,7 +1465,7 @@ function showFinalResult(){
   if(totalW===0){
     const d=document.createElement('div');
     d.className='fb-block great';
-    d.innerHTML='<div class="fb-block-title">Все ответы верны</div><p>Ни одной ошибки во всех трёх сценариях. Вы уверенно работаете с дефектным товаром, объясняете условия доставки без конфликта и грамотно управляете очередью в час-пик. Продолжайте применять эти навыки каждый день.</p>';
+    d.innerHTML='<div class="fb-block-title">Все ответы верны</div><p>Ни одной ошибки во всех трёх сценариях. Ты уверенно работаешь с клиентами, объясняешь условия доставки без конфликта и грамотно управляешь очередью в час-пик. Продолжай применять эти навыки каждый день.</p>';
     fbDiv.appendChild(d);
   } else {
     const themes=new Set();
@@ -1451,7 +1484,7 @@ function showFinalResult(){
       d.className='fb-block warn';
       const lines=weakSc.map(s=>{
         const m=allMistakes.find(m=>m.scId===s.id);
-        const hint=m?m.fb.replace(/^Ошибка\.\s*/,''):'Обратите внимание на правильные ответы в этом сценарии.';
+        const hint=m?m.fb.replace(/^Ошибка\.\s*/,''):'Обрати внимание на правильные ответы в этом сценарии.';
         return '<b>'+s.title+'</b> — '+s.pct+'% верных ответов<br><span style="color:var(--text-2)">'+hint+'</span>';
       }).join('<br><br>');
       d.innerHTML='<div class="fb-block-title">Зоны роста</div><p>'+lines+'</p>';
@@ -1479,12 +1512,93 @@ function showFinalResult(){
     }
   }
 
-  scormComplete(pct);
+  // Безопасный вызов SCORM, если LMS-функция существует
+  if (typeof scormComplete === 'function') {
+    scormComplete(pct);
+  }
+  
   show('final');
   window.scrollTo(0,0);
 }
 
 updateMood();
+
+
+
+
+function closeTraining(event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  console.log('Closing training...');
+
+  // ===== SCORM 1.2 =====
+  try {
+    if (window.API) {
+      window.API.LMSSetValue('cmi.core.lesson_status', 'completed');
+      window.API.LMSCommit('');
+      window.API.LMSFinish('');
+    }
+  } catch (e) {
+    console.log('SCORM 1.2 close error:', e);
+  }
+
+  // ===== SCORM 2004 =====
+  try {
+    if (window.API_1484_11) {
+      window.API_1484_11.SetValue('cmi.completion_status', 'completed');
+      window.API_1484_11.Commit('');
+      window.API_1484_11.Terminate('');
+    }
+  } catch (e) {
+    console.log('SCORM 2004 close error:', e);
+  }
+
+  // ===== pipwerks wrapper =====
+  try {
+    if (typeof pipwerks !== 'undefined' && pipwerks.SCORM) {
+      pipwerks.SCORM.save();
+      pipwerks.SCORM.quit();
+    }
+  } catch (e) {
+    console.log('pipwerks close error:', e);
+  }
+
+  // ===== Попытка закрыть popup/tab =====
+  try {
+    window.open('', '_self');
+    window.close();
+  } catch (e) {
+    console.log('window.close blocked:', e);
+  }
+
+  // ===== LMS iframe fallback =====
+  try {
+    if (window.top !== window.self) {
+      window.top.postMessage({
+        type: 'SCORM_EXIT',
+        status: 'completed'
+      }, '*');
+    }
+  } catch (e) {
+    console.log('postMessage error:', e);
+  }
+
+  // ===== Жёсткий fallback =====
+  setTimeout(function () {
+    try {
+      history.back();
+    } catch (e) {}
+
+    try {
+      window.location.href = '/';
+    } catch (e) {}
+
+  }, 300);
+}
+
 </script>
 </body>
 </html>

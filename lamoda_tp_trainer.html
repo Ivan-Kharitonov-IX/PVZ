@@ -390,7 +390,14 @@ body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-h
     <div id="f-scenarios" style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px;"></div>
     <div id="f-feedback-block" style="margin-bottom:24px;"></div>
     <div style="display:flex;flex-direction:column;gap:8px;">
-      <button class="btn-close-training" id="btn-close" onclick="closeTraining()">Завершить обучение</button>
+  <button
+  id="btn-close"
+  class="btn-close-training"
+  type="button"
+  onclick="closeTraining(event)"
+  ontouchend="closeTraining(event)">
+  Завершить обучение
+</button>
       <button class="btn-menu" onclick="restartAll()">Пройти заново</button>
     </div>
   </div>
@@ -863,13 +870,135 @@ function scormComplete(score){
     API.LMSFinish('');
   }catch(e){console.warn('SCORM error:',e);}
 }
-function closeTraining(){
-  try{const API=findSCORMApi();if(API){API.LMSFinish('');}}catch(e){}
-  try{window.close();}catch(e){}
-  const btn=document.getElementById('btn-close');
-  if(btn){btn.textContent='Обучение завершено ✓';btn.disabled=true;btn.style.opacity='.5';}
+function closeTraining(event){
+
+  if(event){
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  const btn =
+    document.getElementById('btn-close') ||
+    document.querySelector('.btn-close-training');
+
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = 'Завершение обучения...';
+  }
+
+  // SCORM 1.2
+  try{
+
+    const API = findSCORMApi
+      ? findSCORMApi()
+      : window.API;
+
+    if(API){
+
+      try{
+        API.LMSSetValue(
+          'cmi.core.lesson_status',
+          'completed'
+        );
+      }catch(e){}
+
+      try{
+        API.LMSSetValue(
+          'cmi.core.exit',
+          'logout'
+        );
+      }catch(e){}
+
+      try{
+        API.LMSCommit('');
+      }catch(e){}
+
+      try{
+        API.LMSFinish('');
+      }catch(e){}
+    }
+
+  }catch(e){
+    console.error(e);
+  }
+
+  // SCORM 2004
+  try{
+
+    if(window.API_1484_11){
+
+      window.API_1484_11.SetValue(
+        'cmi.completion_status',
+        'completed'
+      );
+
+      window.API_1484_11.SetValue(
+        'cmi.exit',
+        'normal'
+      );
+
+      window.API_1484_11.Commit('');
+      window.API_1484_11.Terminate('');
+    }
+
+  }catch(e){
+    console.error(e);
+  }
+
+  // pipwerks
+  try{
+
+    if(
+      typeof pipwerks !== 'undefined' &&
+      pipwerks.SCORM
+    ){
+      pipwerks.SCORM.save();
+      pipwerks.SCORM.quit();
+    }
+
+  }catch(e){
+    console.error(e);
+  }
+
+  // уведомляем LMS-контейнер
+  try{
+
+    window.parent.postMessage({
+      type: 'COURSE_COMPLETED',
+      source: 'dialog-trainer'
+    }, '*');
+
+  }catch(e){}
+
+  // попытка закрыть вкладку
+  setTimeout(function(){
+
+    try{
+
+      if(window.opener){
+        window.close();
+        return;
+      }
+
+    }catch(e){}
+
+    try{
+
+      if(window.top !== window.self){
+        history.back();
+        return;
+      }
+
+    }catch(e){}
+
+    if(btn){
+      btn.disabled = false;
+      btn.textContent =
+        'Обучение завершено ✓ Вернитесь в LMS';
+    }
+
+  }, 700);
 }
-function restartAll(){completedScenarios=[];allMistakes=[];updateSelectorUI();show('selector');}
 
 updateMood();
 </script>
